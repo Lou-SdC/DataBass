@@ -1,0 +1,4 @@
+librosa
+pandas
+ipykernel
+matplotlib
