@@ -1,0 +1,8 @@
+librosa
+pandas
+ipykernel
+matplotlib
+sounddevice
+soundfile
+preprocess_audio
+gdown
