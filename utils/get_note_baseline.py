@@ -37,7 +37,7 @@ def get_pic_frequency(y, sr):
     magnitude = np.abs(fft_result)
 
     # take only positive spectrum
-    n = len(y_select)
+    n = len(y)
     frequencies = np.linspace(0, sr, n)[:n//2]
     magnitude = magnitude[:n//2]
 
