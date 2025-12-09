@@ -30,6 +30,7 @@ def create_table():
             frequence = frequence_vide * (2 ** (fret / 12))
             # Convert to note (ex: 41.20 Hz → 'E1')
             note = librosa.hz_to_note(frequence)
+            note.replace('♯', '#')  # Replace ♯ with sharps if any
             notes_basse.append({
                 'corde': corde,
                 'case': fret,
@@ -44,3 +45,5 @@ def create_table():
     df_notes.to_csv('table_correspondance_notes_basse.csv', index=False)
 
     print("Table créée")
+
+    return df_notes
