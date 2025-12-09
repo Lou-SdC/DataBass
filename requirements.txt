@@ -6,5 +6,7 @@ sounddevice
 soundfile
 preprocess_audio
 gdown
+numpy
+music21
 dotenv
 alive_progress
