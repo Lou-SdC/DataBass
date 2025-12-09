@@ -10,6 +10,7 @@ if __name__ == "__main__":
     load_dotenv()
     dir = os.getenv('WORKING_DIR')
     processed_file = extract_chorus_bass_list(dir)
+    # processed_file = '/home/julien/code/gridar/DataBass/data/preprocessed/chorus_bass_list.csv'
     print(f"✅ Chorus bass extraction complete! Preprocessed data saved in {processed_file} 🎉")
 
     ## BASELINE ##
