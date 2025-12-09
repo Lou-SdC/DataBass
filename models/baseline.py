@@ -8,20 +8,23 @@ import os
 from dotenv import load_dotenv
 from utils.create_table import create_table
 from utils.get_note_baseline import get_pic_frequency, get_note, plot_fft
+from preprocess.filter import frequencies_filter
 import glob
-
 
 def predict(processed_file):
     df_files = pd.read_csv(processed_file)
+    working_dir = os.getenv('WORKING_DIR')
     note_table = create_table()
     results = []
+
+    print(working_dir)
     for _, row in df_files.iterrows():
-        working_dir = os.getenv('WORKING_DIR')
-
         audio_file = os.path.join(working_dir, 'raw_data', row['file_path'])
-
         print(f"Processing file: {audio_file}")
         y, sr = librosa.load(audio_file, sr=None)
+
+        # Filter the signal to keep only bass guitar frequencies
+        y = frequencies_filter(y, sr, lower_freq=35, higher_freq=405)
 
         # Using only the max FFT peak to estimate frequency
         pic_frequency, magnitude, frequencies = get_pic_frequency(y, sr)
