@@ -1,46 +1,93 @@
 import librosa
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import ast
 
-import sys
 import os
-from dotenv import load_dotenv
 from utils.create_table import create_table
-from utils.get_note_baseline import get_pic_frequency, get_note, plot_fft
-import glob
+from utils.get_note_baseline import get_pic_frequency, get_note
+from preprocess.filter import frequencies_filter
+from concurrent.futures import ProcessPoolExecutor
+from alive_progress import alive_bar
+from itertools import repeat
 
+def _predict_line(row, note_table):
+    ats = row.get('audio_time_serie', None)
+    if ats is None or (isinstance(ats, float) and np.isnan(ats)) or ats == '':
+        y = np.array([], dtype=np.float32)
+    elif isinstance(ats, (list, np.ndarray)):
+        y = np.asarray(ats, dtype=np.float32)
+    elif isinstance(ats, str):
+        try:
+            parsed = ast.literal_eval(ats)
+            y = np.asarray(parsed, dtype=np.float32)
+        except Exception:
+            # fallback: try parsing numeric values separated by commas or spaces
+            try:
+                y = np.fromstring(ats, sep=',', dtype=np.float32)
+                if y.size == 0:
+                    y = np.fromstring(ats, sep=' ', dtype=np.float32)
+            except Exception:
+                y = np.array([], dtype=np.float32)
+    else:
+        try:
+            y = np.asarray(ats, dtype=np.float32)
+        except Exception:
+            y = np.array([], dtype=np.float32)
 
-def predict(processed_file):
-    df_files = pd.read_csv(processed_file)
+    sr = row.get('sample_rate', None)
+    if isinstance(sr, str):
+        # try to coerce common numeric string formats to int
+        if sr.isdigit():
+            sr = int(sr)
+        else:
+            try:
+                sr = int(float(sr))
+            except Exception:
+                sr = None
+
+    # If no valid audio or sample rate, return NaN/empty prediction to avoid crashes
+    if y.size == 0 or sr is None or (isinstance(sr, float) and np.isnan(sr)):
+        return {
+            "file": row.get('file'),
+            "target_note": row.get('target_note'),
+            "target_frequency": row.get('target_frequency'),
+            "pred_frequency": np.nan,
+            "pred_note": ""
+        }
+
+    y = frequencies_filter(y, sr, lower_freq=35, higher_freq=405)
+    pic_frequency, _, _ = get_pic_frequency(y, sr)
+    note = get_note(pic_frequency, note_table) if pic_frequency is not None else ''
+    pred_frequency = float(pic_frequency) if pic_frequency is not None else np.nan
+
+    return {
+        "file": row.get('file'),
+        "target_note": row.get('target_note'),
+        "target_frequency": row.get('target_frequency'),
+        "pred_frequency": pred_frequency,
+        "pred_note": note.replace('♯', '#') if isinstance(note, str) else ""
+    }
+
+def predict(lodaed_df_file):
+    df_files = pd.read_csv(lodaed_df_file)
+    working_dir = os.getenv('WORKING_DIR')
     note_table = create_table()
+
     results = []
-    for _, row in df_files.iterrows():
-        working_dir = os.getenv('WORKING_DIR')
+    rows = df_files.to_dict(orient='records')
+    mw = os.cpu_count()
+    print(f'Using {mw} workers for loading.')
+    with ProcessPoolExecutor(max_workers=mw or 1) as executor:
+        with alive_bar(len(rows), title='Predicting') as bar:
+            for result in executor.map(_predict_line, rows, repeat(note_table)):
+                results.append(result)
+                bar()
 
-        audio_file = os.path.join(working_dir, 'raw_data', row['file_path'])
-
-        print(f"Processing file: {audio_file}")
-        y, sr = librosa.load(audio_file, sr=None)
-
-        # Using only the max FFT peak to estimate frequency
-        pic_frequency, magnitude, frequencies = get_pic_frequency(y, sr)
-        note = get_note(pic_frequency, note_table)
-
-        results.append({
-            "file": audio_file,
-            "target_note": row['note_name'],
-            "target_frequency": librosa.note_to_hz(row['note_name']),
-            "pred_frequency": float(pic_frequency) if pic_frequency is not None else np.nan,
-            "pred_note": note
-        })
-
-    # build output directory next to project data folder: <project_root>/data/baseline
     prediction_dir = os.path.join(working_dir, 'data', 'baseline')
     os.makedirs(prediction_dir, exist_ok=True)
     prediction_file = os.path.join(prediction_dir, 'notes.csv')
     pd.DataFrame(results).to_csv(prediction_file, index=False)
-
     return prediction_file
 
 def evaluate(prediction_file):
