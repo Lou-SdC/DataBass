@@ -40,4 +40,18 @@ if __name__ == "__main__":
     else:
         print("Skipping baseline processing.")
 
+    resp = input("Run advanced baseline using pyin function? [Y/n]: ").strip().lower()
+    if resp == "y":
+        # load chorus_bass_list.csv and process each audio file to get frequency and note using pyin
+        # save the results in data/baseline/pyin_notes.csv
+        # evaluate the results and save the evaluation in data/baseline/pyin_evaluation.txt
+        print("🎷 Starting DataBass advanced baseline processing using pyin...")
+        prediction_file = baseline_model.predict_pyin(loaded_df_file)
+        # prediction_file = '/home/julien/code/gridar/DataBass/data/baseline/pyin_notes.csv'
+        result = baseline_model.evaluate_pyin(prediction_file)
+        print(f"🥁 Advanced Evaluation Results:\n{result}")
+        print(f"🚀🕺 DataBass advanced baseline processing complete — results saved in {prediction_file} 🎉🤘😎")
+    else:
+        print("Skipping advanced baseline processing.")
+
     ## Random forest model ##
