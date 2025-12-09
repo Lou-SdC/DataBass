@@ -6,8 +6,8 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 
-def generate_mel_spectrogram(y, sr, n_mels=128, fmax=8000, n_fft=2048, hop_length=512,
-                             normalize=False):
+def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
+                             normalize=False, target_shape=(128, 128), duration=1.0):
     """
     generate a mel-spectrogram from y, sr extracted from the audio file.
 
@@ -17,14 +17,20 @@ def generate_mel_spectrogram(y, sr, n_mels=128, fmax=8000, n_fft=2048, hop_lengt
         n_mels (int): number of Mel. bands. Default: 128.
         fmax (int): max frequency to use. Default: 8000 Hz.
         n_fft (int): size of the FFT window (higher = better frequencial resolution)
-        hop_length (int): step between windows (smaller = better temporal resolution)
         normalize (bool or str): type of normalization you want to perform:
             False = no normalization, 'minmax' = MinMax normalization,
             'standard' = standard normalization
+        target_shape (tuple): target size (height * width). default (128, 128)
+        duration (float): duration of the audio file to analyze. default 2 sec
 
     Returns:
         np.ndarray: Mel-spectrogram (shape: [n_mels, time_steps]).
     """
+    # Compute hop_length to get target size
+    n_mels, width_target = target_shape
+    # step between windows
+    hop_length = int((duration * sr) / (width_target - 1))
+
 
     # create the Mel-spectrogram
     mel_spectrogram = librosa.feature.melspectrogram(
@@ -33,7 +39,7 @@ def generate_mel_spectrogram(y, sr, n_mels=128, fmax=8000, n_fft=2048, hop_lengt
         n_mels=n_mels,
         fmax=fmax,
         n_fft=2048,
-        hop_length=512
+        hop_length=hop_length
     )
 
     # dB conversion
