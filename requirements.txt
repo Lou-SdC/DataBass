@@ -6,3 +6,4 @@ sounddevice
 soundfile
 preprocess_audio
 gdown
+numpy
