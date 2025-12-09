@@ -1,0 +1,169 @@
+import pytest
+import os
+import shutil
+from pathlib import Path
+from pydub import AudioSegment
+import sys
+
+# Ajouter le répertoire parent au chemin pour importer utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.audio_split import audio_split_by_note, clear_folder
+
+
+class TestAudioSplitByNote:
+    """Suite de tests pour la fonction audio_split_by_note"""
+
+    TEST_OUTPUT_FOLDER = "test_notes_output"
+    TEST_AUDIO_MONO = "test_audio_mono.wav"
+    TEST_AUDIO_STEREO = "test_audio_stereo.wav"
+    TEST_INVALID_FILE = "test_invalid.txt"
+
+    @classmethod
+    def setup_class(cls):
+        """Crée les fichiers de test nécessaires"""
+        # Créer un fichier audio mono simple avec quelques notes distinctes
+        sample_rate = 44100
+        duration_ms = 2000  # 2 secondes
+
+        # Créer un audio mono avec des notes (onsets détectables)
+        from pydub.generators import Sine
+
+        # Créer 4 notes distinctes (chacune 400ms avec silence)
+        audio = AudioSegment.empty()
+        for i in range(4):
+            # Note (440 Hz + variation)
+            frequency = 440 + (i * 50)
+            note = Sine(frequency).to_audio_segment(duration=400)
+            # Ajouter du silence pour que librosa détecte les onsets
+            silence = AudioSegment.silent(duration=100)
+            audio += note + silence
+
+        audio.export(cls.TEST_AUDIO_MONO, format="wav")
+
+        # Créer un audio stéréo
+        audio_stereo = audio.set_channels(2)
+        audio_stereo.export(cls.TEST_AUDIO_STEREO, format="wav")
+
+        # Créer un fichier invalide
+        with open(cls.TEST_INVALID_FILE, 'w') as f:
+            f.write("This is not an audio file")
+
+    @classmethod
+    def teardown_class(cls):
+        """Nettoie les fichiers de test"""
+        # Supprimer les fichiers de test
+        for file in [cls.TEST_AUDIO_MONO, cls.TEST_AUDIO_STEREO, cls.TEST_INVALID_FILE]:
+            if os.path.exists(file):
+                os.remove(file)
+
+        # Supprimer le dossier de sortie
+        if os.path.exists(cls.TEST_OUTPUT_FOLDER):
+            shutil.rmtree(cls.TEST_OUTPUT_FOLDER)
+
+    def test_audio_file_not_found(self):
+        """Test: Le fichier audio n'existe pas"""
+        result = audio_split_by_note("nonexistent_file.wav", confirm_clear=False)
+        assert result['success'] is False
+        assert result['num_notes_detected'] == 0
+        assert result['num_files_created'] == 0
+        print("✓ Test passed: FileNotFoundError handled correctly")
+
+    def test_invalid_audio_format(self):
+        """Test: Le fichier n'est pas un format audio"""
+        result = audio_split_by_note(
+            self.TEST_INVALID_FILE,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+        assert result['success'] is False
+        assert result['num_notes_detected'] == 0
+        print("✓ Test passed: Invalid format rejected correctly")
+
+    def test_mono_audio_split(self):
+        """Test: Découpage correct d'un fichier mono"""
+        result = audio_split_by_note(
+            self.TEST_AUDIO_MONO,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+
+        assert result['success'] is True, "Audio splitting should succeed"
+        assert result['num_notes_detected'] > 0, "Should detect at least one note"
+        assert result['num_files_created'] > 0, "Should create at least one file"
+        assert result['num_notes_detected'] == result['num_files_created'], \
+            f"Number of detected notes ({result['num_notes_detected']}) should match " \
+            f"number of created files ({result['num_files_created']})"
+
+        # Vérifier que les fichiers existent
+        for i in range(1, result['num_files_created'] + 1):
+            file_path = os.path.join(self.TEST_OUTPUT_FOLDER, f"note_{i:03d}.wav")
+            assert os.path.exists(file_path), f"File {file_path} should exist"
+            assert os.path.getsize(file_path) > 0, f"File {file_path} should not be empty"
+
+        print(f"✓ Test passed: {result['num_notes_detected']} notes detected and " \
+              f"{result['num_files_created']} files created")
+
+    def test_stereo_audio_split(self):
+        """Test: Découpage correct d'un fichier stéréo"""
+        result = audio_split_by_note(
+            self.TEST_AUDIO_STEREO,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+
+        assert result['success'] is True
+        assert result['num_notes_detected'] == result['num_files_created'], \
+            f"Notes detected ({result['num_notes_detected']}) should match files created " \
+            f"({result['num_files_created']})"
+        print(f"✓ Test passed: Stereo audio split correctly")
+
+    def test_output_folder_cleared(self):
+        """Test: L'ancien dossier de sortie est bien vidé"""
+        # Première exécution
+        result1 = audio_split_by_note(
+            self.TEST_AUDIO_MONO,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+        num_files_first = result1['num_files_created']
+
+        # Deuxième exécution
+        result2 = audio_split_by_note(
+            self.TEST_AUDIO_MONO,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+        num_files_second = result2['num_files_created']
+
+        # Compter les fichiers actuels
+        actual_files = len([f for f in os.listdir(self.TEST_OUTPUT_FOLDER)
+                           if f.endswith('.wav')])
+
+        assert actual_files == num_files_second, \
+            f"Should have {num_files_second} files, but found {actual_files}"
+        print(f"✓ Test passed: Old folder properly cleared before new split")
+
+    def test_return_value_structure(self):
+        """Test: La structure de retour est correcte"""
+        result = audio_split_by_note(
+            self.TEST_AUDIO_MONO,
+            dossier_sortie=self.TEST_OUTPUT_FOLDER,
+            confirm_clear=False
+        )
+
+        required_keys = {'num_notes_detected', 'num_files_created', 'output_folder', 'success'}
+        assert set(result.keys()) == required_keys, \
+            f"Return dict should have keys {required_keys}, got {set(result.keys())}"
+
+        assert isinstance(result['num_notes_detected'], int)
+        assert isinstance(result['num_files_created'], int)
+        assert isinstance(result['output_folder'], str)
+        assert isinstance(result['success'], bool)
+
+        print("✓ Test passed: Return value structure is correct")
+
+
+if __name__ == "__main__":
+    # Lancer les tests avec pytest
+    pytest.main([__file__, "-v", "-s"])
