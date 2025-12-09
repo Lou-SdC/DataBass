@@ -76,8 +76,8 @@ def extract_chorus_bass_list(working_dir):
     df['file_path'] = df['fileID'].apply(lambda x:
         os.path.join(
             'Bass monophon',
-            'Audio',
             'Samples',
+            'Chorus',
             f"{x}.wav"
         )
     )
@@ -88,6 +88,7 @@ def extract_chorus_bass_list(working_dir):
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, 'chorus_bass_list.csv')
     df.to_csv(output_file, index=False)
+    return output_file
 
 if __name__ == "__main__":
     print("Extracting chorus bass list...")
