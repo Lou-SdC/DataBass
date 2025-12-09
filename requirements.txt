@@ -6,4 +6,5 @@ sounddevice
 soundfile
 preprocess_audio
 gdown
+music21
 dotenv
