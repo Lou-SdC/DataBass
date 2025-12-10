@@ -57,15 +57,22 @@ def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
         return mel_spectrogram_db_standard
 
 
-def plot_mel_spectrogram(mel_spec, sr):
+def plot_mel_spectrogram(mel_spec, sr, target_shape=(128,128)):
     """function to plot a spectrogram generated with generate_mel_spectrogram
 
     Args:
         mel_spec (np.ndarray): a Mel-spectrogram
         sr (int): the sampling rate of the audio file
+        target_shape (tuple): target size (height * width). default (128, 128)
     """
+    # Compute hop_length to get target size
+    n_mels, width_target = target_shape
+    # step between windows (smaller = better temporal resolution)
+    hop_length = int(len(y) / (width_target - 1))
+
     plt.figure(figsize=(10, 4))
-    librosa.display.specshow(mel_spec, x_axis='time', y_axis='mel', sr=sr)
+    librosa.display.specshow(mel_spec, hop_length=hop_length,
+                             x_axis='time', y_axis='mel', sr=sr)
     plt.colorbar(format='%+2.0f dB')
     plt.title('Mel-spectrogram')
     plt.show()
