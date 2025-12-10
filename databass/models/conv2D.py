@@ -127,11 +127,15 @@ def predict(signal, sr, model, le):
     return conv2D_predict_note(processed, model, le)
 
 def load_model():
-    WORKING_DIR = os.getenv('WORKING_DIR')
-    MODEL_PATH = os.path.join(WORKING_DIR, 'data', 'models', 'conv2D_model.keras')
+    # find current execution path
+    WORKING_DIR = os.getcwd()
+    print("Working dir:", WORKING_DIR)
+    PARENT_DIR = os.path.dirname(WORKING_DIR)
+    print("Parent dir:", PARENT_DIR)
+    MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_model.keras')
     model = k_load_model(MODEL_PATH)
     # load label encoder from label_encoder.pkl file
-    le_path = os.path.join(WORKING_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
+    le_path = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
 
     with open(le_path, 'rb') as f:
         le = pickle.load(f)

@@ -4,10 +4,13 @@ ipykernel
 matplotlib
 sounddevice
 soundfile
-preprocess_audio
 gdown
 numpy
 music21
 dotenv
 alive_progress
 python-multipart
+uvicorn
+fastapi
+pydantic
+tensorflow
