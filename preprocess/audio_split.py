@@ -1,6 +1,7 @@
 import os
 import librosa
 import shutil
+import numpy as np
 from pathlib import Path
 
 from pydub import AudioSegment
@@ -43,6 +44,9 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
             'num_files_created': int,
             'output_folder': str,
             'success': bool
+            'onset_times': list of float, in seconds
+            'note_lengths': list of float, in seconds
+            'tempo': float or None in BPM
         }
 
     Raises:
@@ -62,6 +66,9 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
 
     try:
         # 1. Vérifier que le fichier existe
+        print(fichier_audio)
+        print(os.path.exists(fichier_audio))
+
         if not os.path.exists(fichier_audio):
             raise FileNotFoundError(f"❌ Audio file not found: '{fichier_audio}'")
 
@@ -103,6 +110,14 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         duration = librosa.get_duration(y=y, sr=sr)
         print(f"✓ Audio loaded successfully - Duration: {duration:.2f}s, Sample rate: {sr} Hz")
 
+        # 6.c Estimation du tempo
+        try:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            result['tempo'] = tempo
+            print(f"✓ Estimated tempo: {tempo} BPM") if type(tempo) == np.ndarray else print(f"✓ Estimated tempo: {tempo:.2f} BPM")
+        except Exception as e:
+            print(f"⚠ Warning: Failed to estimate tempo - {str(e)}")
+
         # 6. Détection des onsets (début des notes)
         try:
             onsets = librosa.onset.onset_detect(y=y, sr=sr, units='time')
@@ -119,7 +134,7 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 )
 
             # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
-            result['onset_times'] = onsets.tolist()
+            result['onset_times'] = librosa.frames_to_time(onsets, sr=sr)
 
             print(f"✓ Detected {num_onsets} note(s) stored in onset_times")
             result['num_notes_detected'] = num_onsets
@@ -134,33 +149,17 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
 
         # 6.b Détection de la durée des notes
 
-        # Calcul de la moyenne quadratique (RMS) pour déterminer la longueur des notes
-        rms = librosa.feature.rms(y=y)[0]
-        threshold = 0.1 * max(rms)  # Seuil à 10
-        print(f"✓ RMS threshold for note length determination: {threshold:.6f}")
-
-        # Convertir la rms en temps
-        frame_times = librosa.frames_to_time(range(len(rms)), sr=sr)
-
-        # détecter les fourchettes au-dessus du seuil
         note_lengths = []
-        is_note = False
-        note_start = 0.0
-        for i, value in enumerate(rms):
-            if value >= threshold and not is_note:
-                is_note = True
-                note_start = frame_times[i]
-            elif value < threshold and is_note:
-                is_note = False
-                note_end = frame_times[i]
-                note_lengths.append((note_start, note_end))
-        # Si le fichier se termine pendant une note
-        if is_note:
-            note_lengths.append((note_start, duration))
-        print(f"✓ Detected {len(note_lengths)} note length(s) based on RMS")
+        for i in range(len(onsets)):
+            start_time = onsets[i]
+            end_time = onsets[i+1] if i+1 < len(onsets) else duration
+            length = end_time - start_time
+            note_lengths.append(length)
 
+        print(f"✓ Detected note lengths for {len(note_lengths)} note(s)")
         result['note_lengths'] = note_lengths
 
+        # vérifications croisées
         if len(result['note_lengths']) == len(result['onset_times']):
             print(f"✓ number of note lengths correspond to number of detected onsets")
 
@@ -169,14 +168,6 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 f"⚠ Warning: Number of detected note lengths ({len(note_lengths)}) "
                 f"does not match number of onsets ({num_onsets})"
             )
-
-        # 6.c Estimation du tempo
-        try:
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            result['tempo'] = tempo
-            print(f"✓ Estimated tempo: {tempo:.2f} BPM")
-        except Exception as e:
-            print(f"⚠ Warning: Failed to estimate tempo - {str(e)}")
 
         # 7. Vider le dossier de sortie s'il existe
         clear_folder(dossier_sortie, confirm=confirm_clear)
