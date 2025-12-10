@@ -28,11 +28,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 from utils import bass_notes
 
-
-def extract_chorus_bass_list(working_dir):
-    directory =  working_dir + '/raw_data/Bass monophon/Lists/Chorus'
-    print(f"Loading chorus bass data from {directory}...")
+# exemple directory for chorus effect :
+# working_dir + '/raw_data/Bass monophon/Lists/Chorus'
+def extract_effect_bass_list(directory, working_dir):
     files = os.listdir(directory)
+    effect_name = os.path.basename(directory)
     data = []
 
     for file in files:
@@ -75,23 +75,54 @@ def extract_chorus_bass_list(working_dir):
 
     df['file_path'] = df['fileID'].apply(lambda x:
         os.path.join(
-            'Bass monophon',
-            'Samples',
-            'Chorus',
+            directory.replace('Lists', 'Samples'),
             f"{x}.wav"
         )
     )
-
-    print(df.head())
-
     output_dir = os.path.join(working_dir, 'data', 'preprocessed')
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, 'chorus_bass_list.csv')
+    output_file = os.path.join(output_dir, f'{effect_name}_list.csv')
     df.to_csv(output_file, index=False)
+    print(f"Extracted bass list for effect {effect_name} saved to {output_file}")
     return output_file
 
+def extract_bass_list(working_dir):
+    raw_data_bass = os.path.join(working_dir, 'raw_data', 'Bass monophon', 'Lists')
+    # list the effect directories
+    effect_dirs = os.listdir(raw_data_bass)
+    output_files = []
+    for effect in effect_dirs:
+        effect_path = os.path.join(raw_data_bass, effect)
+        print(f"Processing effect: {effect}")
+        output_files.append(extract_effect_bass_list(effect_path, working_dir))
+    # combine all effect files into one
+    combined_df = pd.DataFrame()
+    for effect_file in output_files:
+        print(f"Combining file: {effect_file}")
+        df = pd.read_csv(effect_file)
+        combined_df = pd.concat([combined_df, df], ignore_index=True)
+    combined_output_file = os.path.join(
+        working_dir,
+        'data',
+        'preprocessed',
+        'bass_list.csv'
+    )
+    combined_df.to_csv(combined_output_file, index=False)
+    print(f"Combined bass list saved to {combined_output_file}")
+    print("Bass extraction complete.")
+    # remove individual effect files
+    for effect in effect_dirs:
+        effect_name = effect
+        effect_file = os.path.join(
+            working_dir,
+            'data',
+            'preprocessed',
+            f'{effect_name}_list.csv'
+        )
+        os.remove(effect_file)
+    return combined_output_file
+
 if __name__ == "__main__":
-    print("Extracting chorus bass list...")
+    print("Extracting bass list...")
     load_dotenv()
-    WORKING_DIR = os.getenv('WORKING_DIR')
-    extract_chorus_bass_list(WORKING_DIR)
+    extract_bass_list(os.getenv('WORKING_DIR'))
