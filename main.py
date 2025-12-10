@@ -1,29 +1,23 @@
 import os
 from dotenv import load_dotenv
 import models.baseline as baseline_model
+import models.pyin as pyin
 from extract.chorus_bass_extract import extract_chorus_bass_list
-from preprocess.librosa_load import load_audio_files
 
 if __name__ == "__main__":
     print("🎸 Welcome to DataBass! Starting the processing pipeline... 🪩")
+    working_dir = os.getenv('WORKING_DIR')
 
     ## ETL ##
     resp = input("Run ETL ? [Y/n]: ").strip().lower()
     if resp == "y":
         # extract raw_data and save in data/preprocessed/chorus_bass_list.csv
         load_dotenv()
-        dir = os.getenv('WORKING_DIR')
-        processed_file = extract_chorus_bass_list(dir)
+        processed_file = extract_chorus_bass_list(working_dir)
         print(f"✅ Chorus bass extraction complete! Preprocessed data saved in {processed_file} 🎉")
-
-        # transform the .wav files to data frames with librosa
-        print(f"✨ Starting librosa loading 🌹")
-        loaded_df_file = load_audio_files(processed_file)
-        print(f"✅ Librosa loading finished! 🎊")
     else:
         print("Skipping ETL.")
-        working_dir = os.getenv('WORKING_DIR')
-        loaded_df_file = os.path.join(working_dir, 'data', 'preprocessed', 'librosa_loaded_audio.csv')
+        processed_file = os.path.join(working_dir, 'data', 'preprocessed', 'chorus_bass_list.csv')
 
     ## BASELINE ##
     resp = input("Run baseline processing? [Y/n]: ").strip().lower()
@@ -32,7 +26,7 @@ if __name__ == "__main__":
         # save the results in data/baseline/notes.csv
         # evaluate the results and save the evaluation in data/baseline/evaluation.txt
         print("🎷 Starting DataBass baseline processing...")
-        prediction_file = baseline_model.predict(loaded_df_file)
+        prediction_file = baseline_model.predict(processed_file)
         # prediction_file = '/home/julien/code/gridar/DataBass/data/baseline/notes.csv'
         result = baseline_model.evaluate(prediction_file)
         print(f"🥁 Evaluation Results:\n{result}")
@@ -46,9 +40,9 @@ if __name__ == "__main__":
         # save the results in data/baseline/pyin_notes.csv
         # evaluate the results and save the evaluation in data/baseline/pyin_evaluation.txt
         print("🎷 Starting DataBass advanced baseline processing using pyin...")
-        prediction_file = baseline_model.predict_pyin(loaded_df_file)
+        prediction_file = pyin.predict(processed_file)
         # prediction_file = '/home/julien/code/gridar/DataBass/data/baseline/pyin_notes.csv'
-        result = baseline_model.evaluate_pyin(prediction_file)
+        result = pyin.evaluate(prediction_file)
         print(f"🥁 Advanced Evaluation Results:\n{result}")
         print(f"🚀🕺 DataBass advanced baseline processing complete — results saved in {prediction_file} 🎉🤘😎")
     else:

@@ -42,7 +42,7 @@ def create_table():
     df_notes = pd.DataFrame(notes_basse)
 
     # Save it in a CSV file
-    df_notes.to_csv('table_correspondance_notes_basse.csv', index=False)
+    df_notes.to_csv('data/table_correspondance_notes_basse.csv', index=False)
 
     print("Table créée")
 
