@@ -54,7 +54,10 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         'num_notes_detected': 0,
         'num_files_created': 0,
         'output_folder': dossier_sortie,
-        'success': False
+        'onset_times': [],
+        'note_lengths': [],
+        'success': False,
+        'tempo' : None
     }
 
     try:
@@ -103,6 +106,8 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         # 6. Détection des onsets (début des notes)
         try:
             onsets = librosa.onset.onset_detect(y=y, sr=sr, units='time')
+
+
             num_onsets = len(onsets)
 
             if num_onsets == 0:
@@ -113,7 +118,10 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                     f"   This may indicate the audio is silent, too quiet, or has no distinct notes."
                 )
 
-            print(f"✓ Detected {num_onsets} note(s)")
+            # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
+            result['onset_times'] = onsets.tolist()
+
+            print(f"✓ Detected {num_onsets} note(s) stored in onset_times")
             result['num_notes_detected'] = num_onsets
 
         except ValueError:
@@ -124,18 +132,51 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 f"   Error: {str(e)}"
             )
 
-        # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
-        result['onset_times'] = onsets.tolist()
+        # 6.b Détection de la durée des notes
 
-        # 6.b Récupérer la durée de la note pour transmettre à reconstruction de mélodie
-        note_durations = []
-        for i in range(len(onsets)):
-            start_time = onsets[i]
-            end_time = onsets[i+1] if i+1 < len(onsets) else duration
-            note_durations.append(end_time - start_time)
+        # Calcul de la moyenne quadratique (RMS) pour déterminer la longueur des notes
+        rms = librosa.feature.rms(y=y)[0]
+        threshold = 0.1 * max(rms)  # Seuil à 10
+        print(f"✓ RMS threshold for note length determination: {threshold:.6f}")
 
-        result['note_durations'] = note_durations
+        # Convertir la rms en temps
+        frame_times = librosa.frames_to_time(range(len(rms)), sr=sr)
 
+        # détecter les fourchettes au-dessus du seuil
+        note_lengths = []
+        is_note = False
+        note_start = 0.0
+        for i, value in enumerate(rms):
+            if value >= threshold and not is_note:
+                is_note = True
+                note_start = frame_times[i]
+            elif value < threshold and is_note:
+                is_note = False
+                note_end = frame_times[i]
+                note_lengths.append((note_start, note_end))
+        # Si le fichier se termine pendant une note
+        if is_note:
+            note_lengths.append((note_start, duration))
+        print(f"✓ Detected {len(note_lengths)} note length(s) based on RMS")
+
+        result['note_lengths'] = note_lengths
+
+        if len(result['note_lengths']) == len(result['onset_times']):
+            print(f"✓ number of note lengths correspond to number of detected onsets")
+
+        if len(note_lengths) != num_onsets:
+            print(
+                f"⚠ Warning: Number of detected note lengths ({len(note_lengths)}) "
+                f"does not match number of onsets ({num_onsets})"
+            )
+
+        # 6.c Estimation du tempo
+        try:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            result['tempo'] = tempo
+            print(f"✓ Estimated tempo: {tempo:.2f} BPM")
+        except Exception as e:
+            print(f"⚠ Warning: Failed to estimate tempo - {str(e)}")
 
         # 7. Vider le dossier de sortie s'il existe
         clear_folder(dossier_sortie, confirm=confirm_clear)
