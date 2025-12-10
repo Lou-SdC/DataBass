@@ -11,3 +11,4 @@ music21
 dotenv
 alive_progress
 FastAPI
+tensorflow
