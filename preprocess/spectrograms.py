@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
-                             normalize=False, target_shape=(128, 128), duration=1.0):
+                             normalize=False, target_shape=(128, 128), duration=2.0):
     """
     generate a mel-spectrogram from y, sr extracted from the audio file.
 
@@ -38,7 +38,7 @@ def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
         sr=sr,
         n_mels=n_mels,
         fmax=fmax,
-        n_fft=2048,
+        n_fft=n_fft,
         hop_length=hop_length
     )
 
@@ -57,18 +57,20 @@ def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
         return mel_spectrogram_db_standard
 
 
-def plot_mel_spectrogram(mel_spec, sr, target_shape=(128,128)):
+def plot_mel_spectrogram(mel_spec, sr, y=None, target_shape=(128, 128)):
     """function to plot a spectrogram generated with generate_mel_spectrogram
-
     Args:
         mel_spec (np.ndarray): a Mel-spectrogram
         sr (int): the sampling rate of the audio file
+        y (np.ndarray, optional): the audio file extracted with librosa
         target_shape (tuple): target size (height * width). default (128, 128)
     """
-    # Compute hop_length to get target size
+    # Compute hop_length with target size
     n_mels, width_target = target_shape
-    # step between windows (smaller = better temporal resolution)
-    hop_length = int(len(y) / (width_target - 1))
+    if y is not None:
+        hop_length = int(len(y) / (width_target - 1))
+    else:
+        hop_length = 512  # Valeur par défaut si y n'est pas fourni
 
     plt.figure(figsize=(10, 4))
     librosa.display.specshow(mel_spec, hop_length=hop_length,
