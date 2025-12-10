@@ -2,8 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
-from preprocess import preprocess
-from models import load_model
+from main import load_model, preprocess, make_partition
 
 import librosa
 
@@ -26,10 +25,12 @@ app.add_middleware(
 
 @app.get("/")
 def index():
+    print("API is running")
     return {"status": "ok"}
 
 @app.post('/upload_audio')
-async def receive_audio(audio: UploadFile=File(...)):
+async def receive_audio(audio: UploadFile=File(...),format_partition:str='xml'):
+    print("Received audio file:", audio.filename)
     #receive the audio file
     contents = await audio.read()
 
@@ -44,6 +45,8 @@ async def receive_audio(audio: UploadFile=File(...)):
 
     # make the prediction
     prediction = app.state.model.predict(y_filtered)
+
+    partition, image = make_partition(prediction,format_partition=format_partition)
 
     # return the prediction as a response
     return Response(content=str(prediction), media_type="text/plain")
