@@ -124,6 +124,19 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 f"   Error: {str(e)}"
             )
 
+        # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
+        result['onset_times'] = onsets.tolist()
+
+        # 6.b Récupérer la durée de la note pour transmettre à reconstruction de mélodie
+        note_durations = []
+        for i in range(len(onsets)):
+            start_time = onsets[i]
+            end_time = onsets[i+1] if i+1 < len(onsets) else duration
+            note_durations.append(end_time - start_time)
+
+        result['note_durations'] = note_durations
+
+
         # 7. Vider le dossier de sortie s'il existe
         clear_folder(dossier_sortie, confirm=confirm_clear)
 
