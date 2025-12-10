@@ -4,9 +4,12 @@ Create a conv2D model with tensorflow Keras
 
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.callbacks import EarlyStopping
-
+import os
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from preprocess.spectrograms import generate_mel_spectrogram
+from tensorflow.keras.models import load_model as k_load_model
+import pickle
 
 import numpy as np
 
@@ -114,6 +117,27 @@ def conv2D_predict_note(X, model, le):
 
     # Get the note from the class
     predicted_note = le.inverse_transform(predicted_class)
-    print("Predicted note :", predicted_note)
 
-    return predicted_note
+    return predicted_note[0]
+
+def predict(signal, sr, model, le):
+    spec = generate_mel_spectrogram(signal, sr, normalize="minmax")
+    processed = preprocess_for_predict_conv2D(spec)
+
+    return conv2D_predict_note(processed, model, le)
+
+def load_model():
+    # find current execution path
+    WORKING_DIR = os.getcwd()
+    print("Working dir:", WORKING_DIR)
+    PARENT_DIR = os.path.dirname(WORKING_DIR)
+    print("Parent dir:", PARENT_DIR)
+    MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_model.keras')
+    model = k_load_model(MODEL_PATH)
+    # load label encoder from label_encoder.pkl file
+    le_path = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
+
+    with open(le_path, 'rb') as f:
+        le = pickle.load(f)
+
+    return model, le
