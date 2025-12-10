@@ -6,7 +6,7 @@ Function to create the correspondancies table between the frequencies and the no
 import librosa
 import pandas as pd
 
-def create_table():
+def create_table(path_csv: str = 'data/table_correspondance_notes_basse.csv') -> pd.DataFrame:
     # List of the notes in a 4 strings bass guitar (E-A-D-G) on 24 cases
     #(string, case, note, frequency)
     notes_basse = []
@@ -42,7 +42,7 @@ def create_table():
     df_notes = pd.DataFrame(notes_basse)
 
     # Save it in a CSV file
-    df_notes.to_csv('data/table_correspondance_notes_basse.csv', index=False)
+    df_notes.to_csv(path_csv, index=False)
 
     print("Table créée")
 
