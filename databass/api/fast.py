@@ -8,9 +8,14 @@ import tempfile
 import librosa
 import json
 
-from databass.models import conv2D, rand_forest
-from databass.preprocess import audio_split
-from databass.pipeline import MelodyReconstructor
+import sys
+
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(parent_dir))
+from models import conv2D, rand_forest
+from preprocess import audio_split
+from pipeline import MelodyReconstructor
+from preprocess.spectrograms import generate_mel_spectrogram
 
 
 app = FastAPI(
@@ -77,6 +82,8 @@ async def predict(file: UploadFile = File(...)) -> PredictionResponse:
     global _model, _label_encoder
     if _model is None:
         _model, _label_encoder = conv2D.load_model()
+
+    print(f'signal shape: {signal.shape}, sr: {sr}')
 
     predicted_note = conv2D.predict(
         signal,

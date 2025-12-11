@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def generate_mel_spectrogram(y, sr, fmax=8000, n_fft=2048,
-                             normalize=False, target_shape=(128, 128), duration=2.0):
+                             normalize='minmax', target_shape=(128, 128), duration=2.0):
     """
     generate a mel-spectrogram from y, sr extracted from the audio file.
 
