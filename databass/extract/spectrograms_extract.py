@@ -10,6 +10,23 @@ import numpy as np
 
 from preprocess.spectrograms import generate_mel_spectrogram
 
+def generate_mel_spectrogram(y, sr,):
+    """
+    Generate a Mel-spectrogram from an audio signal.
+
+    Args:
+        y (np.ndarray): Audio time series
+        sr (int): Sampling rate of y
+    Returns:
+        mel_spectrogram (np.ndarray): The generated Mel-spectrogram
+    """
+    return generate_mel_spectrogram(
+        y,
+        sr,
+        normalize='minmax',
+        target_shape=(128,128)
+    )
+
 def extract_spectrograms():
 
     # Récupérer WORKING_DIR
@@ -35,8 +52,7 @@ def extract_spectrograms():
         # create the Mel-spectrogramme
         try:
             y, sr = librosa.load(audio_path)
-            mel_spec = generate_mel_spectrogram(y, sr, normalize='minmax',
-                                                target_shape=(128,128))
+            mel_spec = generate_mel_spectrogram(y, sr)
         except Exception as e:
             print(f"❌ Erreur lors du traitement de {audio_path}: {e}")
             continue

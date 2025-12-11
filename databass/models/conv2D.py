@@ -5,15 +5,21 @@ Create a conv2D model with tensorflow Keras
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.callbacks import EarlyStopping
 import os
+import sys
+from pathlib import Path
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from databass.preprocess.spectrograms import generate_mel_spectrogram
+
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(parent_dir))
+
+from preprocess.spectrograms import generate_mel_spectrogram
 from tensorflow.keras.models import load_model as k_load_model
 import pickle
 
 import numpy as np
 
-def create_model(input_shape=(128, 128, 1), num_classes=41, learning_rate=0.001):
+def create_model(input_shape=(128, 128, 1), num_classes=28, learning_rate=0.001):
     """
     Create a Conv2D model to classify the spectrograms.
 
@@ -127,13 +133,16 @@ def predict(signal, sr, model, le):
     return conv2D_predict_note(processed, model, le)
 
 def load_model():
-    # find current execution path
-    WORKING_DIR = os.getcwd()
-    print("Working dir:", WORKING_DIR)
-    PARENT_DIR = os.path.dirname(WORKING_DIR)
-    print("Parent dir:", PARENT_DIR)
+    """Load the conv2D model and the label encoder from disk
+    Returns:
+        model (keras model): the loaded model
+        le (LabelEncoder): the loaded label encoder
+    """
+    PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    PARENT_DIR = os.path.dirname(PARENT_DIR)
     MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_model.keras')
     model = k_load_model(MODEL_PATH)
+    print("Model loaded from", MODEL_PATH)
     # load label encoder from label_encoder.pkl file
     le_path = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
 
