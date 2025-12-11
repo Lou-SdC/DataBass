@@ -19,7 +19,7 @@ def extract_spectrograms():
     sample_list = pd.read_csv(WORKING_DIR + "/data/preprocessed/bass_list.csv")
 
     # Dossier de sortie pour les spectrogrammes
-    output_dir = WORKING_DIR + "/spectrograms"
+    output_dir = WORKING_DIR + "/data/spectrograms"
     os.makedirs(output_dir, exist_ok=True)
 
     # Go through the dataframe
