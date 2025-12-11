@@ -7,7 +7,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 import os
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from preprocess.spectrograms import generate_mel_spectrogram
+from databass.preprocess.spectrograms import generate_mel_spectrogram
 from tensorflow.keras.models import load_model as k_load_model
 import pickle
 
@@ -127,15 +127,30 @@ def predict(signal, sr, model, le):
     return conv2D_predict_note(processed, model, le)
 
 def load_model():
-    # find current execution path
-    WORKING_DIR = os.getcwd()
-    print("Working dir:", WORKING_DIR)
-    PARENT_DIR = os.path.dirname(WORKING_DIR)
-    print("Parent dir:", PARENT_DIR)
-    MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_model.keras')
+    # Find the repository root (where databass package is located)
+    current_file = os.path.abspath(__file__)
+    # Go up from databass/models/conv2D.py to DataBass/
+    REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+    print("Repository root:", REPO_ROOT)
+    MODEL_PATH = os.path.join(REPO_ROOT, 'data', 'models', 'conv2D_model.keras')
+    print("Model path:", MODEL_PATH)
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"❌ Conv2D model not found at: {MODEL_PATH}\n"
+            f"   Please ensure the model file exists in the data/models/ directory."
+        )
+
     model = k_load_model(MODEL_PATH)
+
     # load label encoder from label_encoder.pkl file
-    le_path = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
+    le_path = os.path.join(REPO_ROOT, 'data', 'models', 'conv2D_label_encoder.pkl')
+
+    if not os.path.exists(le_path):
+        raise FileNotFoundError(
+            f"❌ Label encoder not found at: {le_path}\n"
+            f"   Please ensure the label encoder file exists in the data/models/ directory."
+        )
 
     with open(le_path, 'rb') as f:
         le = pickle.load(f)

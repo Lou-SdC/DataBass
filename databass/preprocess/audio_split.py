@@ -1,4 +1,5 @@
 import os
+import csv
 import librosa
 import shutil
 import numpy as np
@@ -47,6 +48,7 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
             'onset_times': list of float, in seconds
             'note_lengths': list of float, in seconds
             'tempo': float or None in BPM
+            'csv_file': path to the created CSV file
         }
 
     Raises:
@@ -61,7 +63,8 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         'onset_times': [],
         'note_lengths': [],
         'success': False,
-        'tempo' : None
+        'tempo' : None,
+        'csv_file': None
     }
 
     try:
@@ -113,8 +116,13 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         # 6.c Estimation du tempo
         try:
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            # Convert to scalar if it's an array
+            if isinstance(tempo, np.ndarray):
+                tempo = float(tempo.item()) if tempo.size == 1 else float(tempo[0])
+            else:
+                tempo = float(tempo)
             result['tempo'] = tempo
-            print(f"✓ Estimated tempo: {tempo} BPM") if type(tempo) == np.ndarray else print(f"✓ Estimated tempo: {tempo:.2f} BPM")
+            print(f"✓ Estimated tempo: {tempo:.2f} BPM")
         except Exception as e:
             print(f"⚠ Warning: Failed to estimate tempo - {str(e)}")
 
@@ -222,6 +230,17 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
             print(f"⚠ Warning: {num_onsets} notes detected but only {files_created} files created")
         else:
             print(f"✓ All {files_created} note(s) successfully saved")
+
+        # 11 create a csv with the name of created files to read from
+        csv_file = os.path.join(dossier_sortie, "created_files.csv")
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["file_name"])
+            for i in range(len(onsets)):
+                writer.writerow([f"note_{i+1:03d}.wav"])
+        print(f"✓ Created CSV file: {csv_file}")
+        result['csv_file'] = csv_file
+
 
         result['success'] = True
         print("✓ Audio splitting completed successfully.")
