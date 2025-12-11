@@ -2,16 +2,48 @@
 Create a conv2D model with tensorflow Keras
 """
 
-from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.callbacks import EarlyStopping
+from keras import layers, models, optimizers
+from keras.callbacks import EarlyStopping
 import os
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from databass.preprocess.spectrograms import generate_mel_spectrogram
-from tensorflow.keras.models import load_model as k_load_model
+from keras.models import load_model as k_load_model
 import pickle
 
 import numpy as np
+
+
+def _pad_or_crop_spec(spec: np.ndarray, target_shape: tuple[int, int] = (128, 128)) -> np.ndarray:
+    """
+    Ensure the mel-spectrogram has the expected (freq, time) size.
+
+    Strategy (robust for short notes):
+    - Center-crop if dimension is larger than target
+    - Symmetric zero-pad if smaller (keeps note content centered)
+    """
+    target_f, target_t = target_shape
+    f, t = spec.shape
+
+    # Adjust frequency axis (rows)
+    if f < target_f:
+        pad_top = (target_f - f) // 2
+        pad_bottom = target_f - f - pad_top
+        spec = np.pad(spec, ((pad_top, pad_bottom), (0, 0)), mode="constant")
+    elif f > target_f:
+        start = (f - target_f) // 2
+        spec = spec[start:start + target_f, :]
+
+    # Adjust time axis (columns)
+    if t < target_t:
+        pad_left = (target_t - t) // 2
+        pad_right = target_t - t - pad_left
+        spec = np.pad(spec, ((0, 0), (pad_left, pad_right)), mode="constant")
+    elif t > target_t:
+        start = (t - target_t) // 2
+        spec = spec[:, start:start + target_t]
+
+    return spec.astype(np.float32)
 
 def create_model(input_shape=(128, 128, 1), num_classes=41, learning_rate=0.001):
     """
@@ -51,7 +83,7 @@ def create_model(input_shape=(128, 128, 1), num_classes=41, learning_rate=0.001)
     return model
 
 
-def preprocess_for_conv2D(X, y):
+def preprocess_for_conv2D(X, y, load_encoder=False):
     """Preprocess the data for model training : get X in the right
     form for feeding the model and encode the y labels in int values
 
@@ -67,10 +99,30 @@ def preprocess_for_conv2D(X, y):
         le: LabelEncoder used to encode the targets values,
             will be useful to decode it later
     """
+    if load_encoder:
+        # Find the repository root (where databass package is located)
+        current_file = os.path.abspath(__file__)
+        # Go up from databass/models/conv2D.py to DataBass/
+        REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        print("Repository root:", REPO_ROOT)
+        ENCODER_PATH = os.path.join(REPO_ROOT, 'data', 'models', 'conv2D_label_encoder.pkl')
+        # Load the encoder from a pickle file if specified
+        with open(ENCODER_PATH, 'rb') as f:
+            le = pickle.load(f)
+        y_encoded = le.transform(y)  # transforms note names in int
+        y = np.array(y_encoded, dtype=np.int32)
 
-    le = LabelEncoder()
-    y_encoded = le.fit_transform(y)  # transforms note names in int
-    y = np.array(y_encoded, dtype=np.int32)
+        if not os.path.exists(ENCODER_PATH):
+            raise FileNotFoundError(
+                f"❌ Conv2D encoder not found at: {ENCODER_PATH}\n"
+                f"   Please ensure the encoder file exists in the data/models/ directory."
+            )
+
+    # Initialize and fit a new encoder
+    else:
+        le = LabelEncoder()
+        y_encoded = le.fit_transform(y)  # transforms note names in int
+        y = np.array(y_encoded, dtype=np.int32)
 
     # Add the canal for Keras (1 = grey levels)
     X = np.expand_dims(X, axis=-1)
@@ -94,6 +146,10 @@ def preprocess_for_predict_conv2D(X):
         X (np.ndarray): a spectrogram with the right shape for a prediction
             by the model
     """
+    # Force fixed (freq, time) shape for the model
+    X = _pad_or_crop_spec(X, target_shape=(128, 128))
+
+    # Add channel and batch dimensions: (1, 128, 128, 1)
     X = np.expand_dims(X, axis=-1)
     X = np.expand_dims(X, axis=0)
 
