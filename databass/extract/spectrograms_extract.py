@@ -41,6 +41,9 @@ def extract_spectrograms():
             print(f"❌ Erreur lors du traitement de {audio_path}: {e}")
             continue
 
+        #Expand dims to make the spectrogram directly usable by the model (shape (128, 128, 1))
+        mel_spec = np.expand_dims(mel_spec, axis=-1)
+
         # output folder for each note
         note_dir = os.path.join(output_dir, row['note_name'])
         os.makedirs(note_dir, exist_ok=True)

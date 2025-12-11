@@ -7,7 +7,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 import os
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from preprocess.spectrograms import generate_mel_spectrogram
+from databass.preprocess.spectrograms import generate_mel_spectrogram
 from tensorflow.keras.models import load_model as k_load_model
 import pickle
 
