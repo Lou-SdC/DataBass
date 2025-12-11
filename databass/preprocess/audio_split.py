@@ -1,6 +1,7 @@
 import os
 import librosa
 import shutil
+import numpy as np
 from pathlib import Path
 
 from pydub import AudioSegment
@@ -43,6 +44,9 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
             'num_files_created': int,
             'output_folder': str,
             'success': bool
+            'onset_times': list of float, in seconds
+            'note_lengths': list of float, in seconds
+            'tempo': float or None in BPM
         }
 
     Raises:
@@ -54,11 +58,17 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         'num_notes_detected': 0,
         'num_files_created': 0,
         'output_folder': dossier_sortie,
-        'success': False
+        'onset_times': [],
+        'note_lengths': [],
+        'success': False,
+        'tempo' : None
     }
 
     try:
         # 1. Vérifier que le fichier existe
+        print(fichier_audio)
+        print(os.path.exists(fichier_audio))
+
         if not os.path.exists(fichier_audio):
             raise FileNotFoundError(f"❌ Audio file not found: '{fichier_audio}'")
 
@@ -100,9 +110,19 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
         duration = librosa.get_duration(y=y, sr=sr)
         print(f"✓ Audio loaded successfully - Duration: {duration:.2f}s, Sample rate: {sr} Hz")
 
+        # 6.c Estimation du tempo
+        try:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            result['tempo'] = tempo
+            print(f"✓ Estimated tempo: {tempo} BPM") if type(tempo) == np.ndarray else print(f"✓ Estimated tempo: {tempo:.2f} BPM")
+        except Exception as e:
+            print(f"⚠ Warning: Failed to estimate tempo - {str(e)}")
+
         # 6. Détection des onsets (début des notes)
         try:
             onsets = librosa.onset.onset_detect(y=y, sr=sr, units='time')
+
+
             num_onsets = len(onsets)
 
             if num_onsets == 0:
@@ -113,7 +133,10 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                     f"   This may indicate the audio is silent, too quiet, or has no distinct notes."
                 )
 
-            print(f"✓ Detected {num_onsets} note(s)")
+            # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
+            result['onset_times'] = librosa.frames_to_time(onsets, sr=sr)
+
+            print(f"✓ Detected {num_onsets} note(s) stored in onset_times")
             result['num_notes_detected'] = num_onsets
 
         except ValueError:
@@ -124,18 +147,27 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 f"   Error: {str(e)}"
             )
 
-        # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
-        result['onset_times'] = onsets.tolist()
+        # 6.b Détection de la durée des notes
 
-        # 6.b Récupérer la durée de la note pour transmettre à reconstruction de mélodie
-        note_durations = []
+        note_lengths = []
         for i in range(len(onsets)):
             start_time = onsets[i]
             end_time = onsets[i+1] if i+1 < len(onsets) else duration
-            note_durations.append(end_time - start_time)
+            length = end_time - start_time
+            note_lengths.append(length)
 
-        result['note_durations'] = note_durations
+        print(f"✓ Detected note lengths for {len(note_lengths)} note(s)")
+        result['note_lengths'] = note_lengths
 
+        # vérifications croisées
+        if len(result['note_lengths']) == len(result['onset_times']):
+            print(f"✓ number of note lengths correspond to number of detected onsets")
+
+        if len(note_lengths) != num_onsets:
+            print(
+                f"⚠ Warning: Number of detected note lengths ({len(note_lengths)}) "
+                f"does not match number of onsets ({num_onsets})"
+            )
 
         # 7. Vider le dossier de sortie s'il existe
         clear_folder(dossier_sortie, confirm=confirm_clear)
