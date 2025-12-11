@@ -97,26 +97,72 @@ def predict(single_file, model, sr = 22050):
     return rand_forest_predict_note(X, model)
 
 def load_model():
-    # find current execution path
-    WORKING_DIR = os.getcwd()
-    print("Working dir:", WORKING_DIR)
-    PARENT_DIR = os.path.dirname(WORKING_DIR)
-    print("Parent dir:", PARENT_DIR)
-    MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'RandForClassifier.pkl')
+    # Find the repository root (where databass package is located)
+    current_file = os.path.abspath(__file__)
+    # Go up from databass/models/rand_forest.py to DataBass/
+    REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+    print("Repository root:", REPO_ROOT)
+    MODEL_PATH = os.path.join(REPO_ROOT, 'data', 'models', 'RandForClassifier.pkl')
+    print("Model path:", MODEL_PATH)
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"❌ RandomForest model not found at: {MODEL_PATH}\n"
+            f"   Please ensure the model file exists in the data/models/ directory."
+        )
+
     with open(MODEL_PATH, 'rb') as f:
         model = pickle.load(f)
 
     return model
 
+def evaluate(X_test, y_test):
+    model = load_model()
+
+    result = model.score(X_test, y_test)
+
+    return result
+
 def select_starting_point(X, length_before=1000, length_after=5000):
     """
     Truncate file to just before and after the start of the note.
-    """
-    start_ind = 0
-    for i in range(len(X)):
-        if X[i] >= 0.9 * X.max():
-            start_ind = i
-            break
+    If the audio is too short, pad it with zeros to reach the expected length.
 
-    X_select = X[start_ind-length_before:start_ind+length_after].copy()
-    return X_select
+    Args:
+        X: audio waveform
+        length_before: samples before the peak (default: 1000)
+        length_after: samples after the peak (default: 5000)
+
+    Returns:
+        X_select: audio segment of exactly (length_before + length_after) samples
+    """
+    expected_length = length_before + length_after
+
+    # Handle empty or very short arrays
+    if len(X) == 0:
+        return np.zeros(expected_length, dtype=np.float32)
+
+    # Find the peak (start of note)
+    start_ind = 0
+    max_val = X.max()
+    if max_val > 0:  # Avoid issues with silent audio
+        for i in range(len(X)):
+            if X[i] >= 0.9 * max_val:
+                start_ind = i
+                break
+
+    # Extract the segment
+    start_slice = max(0, start_ind - length_before)
+    end_slice = min(len(X), start_ind + length_after)
+    X_select = X[start_slice:end_slice].copy()
+
+    # Pad with zeros if too short
+    if len(X_select) < expected_length:
+        padding_needed = expected_length - len(X_select)
+        # Pad at the end
+        X_select = np.pad(X_select, (0, padding_needed), mode='constant', constant_values=0)
+    # Truncate if too long (shouldn't happen with the slicing above, but just in case)
+    elif len(X_select) > expected_length:
+        X_select = X_select[:expected_length]
+
+    return X_select.astype(np.float32)
