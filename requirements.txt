@@ -14,3 +14,4 @@ uvicorn
 fastapi
 pydantic
 tensorflow
+pydub

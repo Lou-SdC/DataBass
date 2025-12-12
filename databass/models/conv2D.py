@@ -199,7 +199,7 @@ def load_model():
     model = k_load_model(MODEL_PATH)
     print("Model loaded from", MODEL_PATH)
     # load label encoder from label_encoder.pkl file
-    le_path = os.path.join(REPO_ROOT, 'data', 'models', 'conv2D_label_encoder.pkl')
+    le_path = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_label_encoder.pkl')
 
     if not os.path.exists(le_path):
         raise FileNotFoundError(

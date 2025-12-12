@@ -21,7 +21,7 @@ def playback_audio(file_path: pathlib.Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Record and playback a short audio sample.")
-    parser.add_argument("--duration", type=float, default=3.0, help="Recording length in seconds.")
+    parser.add_argument("--duration", type=float, default=5.0, help="Recording length in seconds.")
     parser.add_argument("--samplerate", type=int, default=44100, help="Audio sample rate.")
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("recorded_sample.wav"),
                         help="Destination WAV file.")
