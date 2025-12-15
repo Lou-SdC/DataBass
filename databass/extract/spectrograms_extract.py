@@ -8,7 +8,24 @@ import librosa
 import pandas as pd
 import numpy as np
 
-from preprocess.spectrograms import generate_mel_spectrogram
+from ..preprocess.spectrograms import generate_mel_spectrogram as _generate_mel_spectrogram
+
+def generate_mel_spectrogram(y, sr,):
+    """
+    Generate a Mel-spectrogram from an audio signal.
+
+    Args:
+        y (np.ndarray): Audio time series
+        sr (int): Sampling rate of y
+    Returns:
+        mel_spectrogram (np.ndarray): The generated Mel-spectrogram
+    """
+    return _generate_mel_spectrogram(
+        y,
+        sr,
+        normalize='minmax',
+        target_shape=(128,128)
+    )
 
 def extract_spectrograms():
 
@@ -16,10 +33,10 @@ def extract_spectrograms():
     WORKING_DIR = os.getenv("WORKING_DIR")
 
     #get the list file
-    sample_list = pd.read_csv(WORKING_DIR + "/data/preprocessed/bass_list.csv")
+    sample_list = pd.read_csv(WORKING_DIR + "/data/preprocessed/guitar_list.csv")
 
     # Dossier de sortie pour les spectrogrammes
-    output_dir = WORKING_DIR + "/data/spectrograms"
+    output_dir = WORKING_DIR + "/data/guitar_spectrograms"
     os.makedirs(output_dir, exist_ok=True)
 
     # Go through the dataframe
@@ -35,8 +52,7 @@ def extract_spectrograms():
         # create the Mel-spectrogramme
         try:
             y, sr = librosa.load(audio_path)
-            mel_spec = generate_mel_spectrogram(y, sr, normalize='minmax',
-                                                target_shape=(128,128))
+            mel_spec = generate_mel_spectrogram(y, sr)
         except Exception as e:
             print(f"❌ Erreur lors du traitement de {audio_path}: {e}")
             continue

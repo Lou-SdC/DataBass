@@ -2,7 +2,10 @@ import os
 from dotenv import load_dotenv
 import models.baseline as baseline_model
 import models.pyin as pyin
+import kagglehub
+
 from extract.bass_extract import extract_bass_list
+from extract.spectrograms_extract import extract_spectrograms
 
 if __name__ == "__main__":
     print("🎸 Welcome to DataBass! Starting the processing pipeline... 🪩")
@@ -47,6 +50,10 @@ if __name__ == "__main__":
     else:
         print("Skipping advanced baseline processing.")
 
-    ## Random forest model ##
 
-    ## conv2D model ##
+    resp = input("Run spectrogram extraction? [Y/n]: ").strip().lower()
+    if resp == "y":
+        # extract spectrograms
+        print("Extracting spectrogram list...")
+        extract_spectrograms()
+        print("✅ Spectrogram extraction complete! 🎉")

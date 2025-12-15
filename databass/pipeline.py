@@ -20,8 +20,11 @@ from typing import List, Dict, Tuple, Literal
 import librosa
 import music21 as m21
 
-from databass.preprocess.audio_split import audio_split_by_note
-from databass.models import conv2D, rand_forest
+import sys
+parent_dir = Path(__file__).resolve().parent
+sys.path.append(str(parent_dir))
+from preprocess.audio_split import audio_split_by_note
+from models import conv2D, rand_forest
 
 
 class MelodyReconstructor:
