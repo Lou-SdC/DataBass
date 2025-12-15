@@ -18,6 +18,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple, Literal
 import librosa
+import music21 as m21
 
 from databass.preprocess.audio_split import audio_split_by_note
 from databass.models import conv2D, rand_forest
@@ -299,6 +300,66 @@ class MelodyReconstructor:
             print(f"❌ Failed to save CSV: {str(e)}")
             return False
 
+    def export_midi_xml(self, output_midi: str='melody_results.mid', output_xml: str='melody_results.xml') -> bool:
+        """
+        Exporte les résultats dans deux fichiers pour visualisation : un fichier midi et un fichier xml
+
+        Args:
+            output_midi (str): Chemin du fichier midi de sortie
+            output_xml (str): Chemin du fichier xml de sortie
+
+        Returns:
+            bool: True si succès, False sinon
+        """
+
+        # 1. Récupérer la liste de dictionnaires (notes)
+        melody_sequence = self.results['reconstruction']['melody_sequence']
+
+        # 2. Créer une partition
+        score = m21.stream.Score()
+        bpm = self.results['split']['tempo']
+        seconds_per_beat = 60.0 / bpm  # Durée d'une noire en secondes
+
+        # Ajouter le tempo
+        metronome = m21.tempo.MetronomeMark(number=bpm)
+        score.append(metronome)
+
+        # Créer une partie
+        part = m21.stream.Part(instrumentName="Piano")
+        score.append(part)
+
+        # 3. Définir une résolution rythmique (ex: 16e de note)
+        resolution = 16  # 16e de note
+
+        # 4. Ajouter les notes avec arrondi des durées
+        for note_data in melody_sequence:
+            # Convertir les durées en quarts de note
+            duration = note_data["duration"] / seconds_per_beat
+            offset = note_data["start_time"] / seconds_per_beat
+
+            # Arrondir à la résolution choisie
+            rounded_duration = round(duration * resolution) / resolution
+            rounded_offset = round(offset * resolution) / resolution
+
+            # Éviter les durées nulles ou négatives
+            if rounded_duration <= 0:
+                continue
+
+            # Créer la note
+            n = m21.note.Note(note_data["note"])
+            n.quarterLength = rounded_duration
+            n.offset = rounded_offset
+
+            # Ajouter la note à la partie
+            part.append(n)
+
+        # 5. Sauvegarder en MusicXML et MIDI
+        score.write('musicxml', fp=output_xml)
+        score.write('midi', fp=output_midi)
+        print(f"✓ Partition générée sous {output_midi} et {output_xml}")
+        return True
+
+
     def get_full_report(self) -> Dict:
         """
         Retourne un rapport complet avec tous les résultats.
@@ -317,7 +378,8 @@ class MelodyReconstructor:
         }
 
     def run_full_pipeline(self, audio_file: str, model_type: str = None,
-                         output_csv: str = "melody_results.csv") -> Dict:
+                         output_csv: str = "melody_results.csv", output_midi: str = "melody_results.mid",
+                         output_xml: str = "melody_results.xml") -> Dict:
         """
         Exécute le pipeline complet en une seule fonction.
 
@@ -350,8 +412,11 @@ class MelodyReconstructor:
         if not reconstruction.get('success'):
             return {'success': False, 'error': 'Melody reconstruction failed'}
 
-        # Sauvegarde
+        # Étape 4: Sauvegarde
         self.save_results_to_csv(output_csv)
+
+        # Étape 5: Export
+        self.export_midi_xml(output_midi, output_xml)
 
         print(f"\n{'#'*70}")
         print(f"# PIPELINE COMPLÉTÉ AVEC SUCCÈS ✓")
