@@ -49,6 +49,13 @@ class FullPipelineResponse(BaseModel):
     """Response model for full pipeline execution"""
     xml_results: str  # xml result
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # serve ../favicon.png
+    favicon_path = Path(__file__).resolve().parent.parent / "favicon.png"
+    with open(favicon_path, "rb") as f:
+        return Response(content=f.read(), media_type="image/png")
+
 
 @app.get("/")
 def root() -> dict[str, str]:
