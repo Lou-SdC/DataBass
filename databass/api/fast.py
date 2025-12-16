@@ -40,9 +40,167 @@ class SplitAudioPredictResponse(BaseModel):
     error: Optional[str] = None
 
 
-class FullPipelineResponse(BaseModel):
-    """Response model for full pipeline execution"""
-    xml_results: str  # xml result
+async def run_full_pipeline(
+    file: UploadFile = File(...),
+    model_type: str = "conv2d") :
+    """
+    Execute the complete melody reconstruction pipeline
+
+    This function performs the FULL pipeline in sequence:
+    1. **Audio Splitting**: Detect onsets and split into individual notes
+    2. **Note Prediction**: Predict each note using the specified model
+    3. **Melody Reconstruction**: Assemble all predictions with timing information
+    4. **Results Export**: Generate and return a xml and a midi files with all results
+
+    The complete pipeline ensures:
+    - Timing accuracy: Each note has precise onset time and duration
+    - Model consistency: Uses the same model for all predictions
+
+    Args:
+        file: Audio file (WAV)
+        model_type: Model to use ('conv2d' or 'randforest')
+
+    Returns:
+        XML and midi export
+    """
+
+    # ============= STEP 1: VALIDATE INPUT =============
+    if not file.filename:
+        raise ValueError("No filename provided")
+
+    if model_type not in ['conv2d', 'randforest']:
+        raise ValueError(f"Invalid model_type '{model_type}'. Must be 'conv2d' or 'randforest'")
+
+    print(f"\n{'='*70}")
+    print(f"🎵 FULL PIPELINE EXECUTION")
+    print(f"{'='*70}")
+    print(f"File: {file.filename}")
+    print(f"Model: {model_type.upper()}")
+
+    # ============= STEP 2: READ AUDIO =============
+    contents = await file.read()
+    if not contents:
+        raise ValueError("Uploaded file is empty")
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+        tmp_file.write(contents)
+        tmp_audio_path = tmp_file.name
+
+    # Create the MelodyReconstructor
+    reconstructor = MelodyReconstructor(model_type=model_type)
+
+    with tempfile.TemporaryDirectory() as temp_notes_dir:
+        # ============= STEP 3: SPLIT AUDIO =============
+        print(f"\n[STEP 1/3] Splitting audio...")
+        split_success = reconstructor.split_audio(
+            audio_file=tmp_audio_path,
+            notes_folder=temp_notes_dir,
+            confirm_clear=False
+        )
+
+        if not split_success:
+            raise ValueError("Audio splitting failed")
+
+        split_info = reconstructor.results['split']
+        print(f"✓ Split complete: {split_info['num_notes_detected']} notes detected")
+
+        # ============= STEP 4: PREDICT NOTES =============
+        print(f"\n[STEP 2/3] Predicting notes with {model_type.upper()}...")
+        predict_success = reconstructor.predict_notes()
+
+        if not predict_success:
+            raise ValueError("Note prediction failed")
+
+        predictions = reconstructor.results['predictions']
+        successful_predictions = [p for p in predictions if p['error'] is None]
+        print(f"✓ Predictions complete: {len(successful_predictions)}/{len(predictions)} successful")
+
+        # ============= STEP 5: RECONSTRUCT MELODY =============
+        print(f"\n[STEP 3/3] Reconstructing melody...")
+        reconstruction = reconstructor.reconstruct_melody()
+
+        if not reconstruction.get('success'):
+            raise ValueError("Melody reconstruction failed")
+
+        melody_seq = reconstruction['melody_sequence']
+        print(f"✓ Reconstruction complete: {len(melody_seq)} notes in sequence")
+
+        # ============= STEP 6: GENERATE CSV =============
+        # print(f"\n[STEP 4/4] Generating CSV results...")
+        print(f"\n[STEP 4/4] Generating XML results...")
+
+        # 1. Créer une partition
+        score = m21.stream.Score()
+        bpm = split_info['tempo']
+        seconds_per_beat = 60.0 / bpm  # Durée d'une noire en secondes
+
+        # Ajouter le tempo
+        metronome = m21.tempo.MetronomeMark(number=bpm)
+        score.append(metronome)
+
+        # Créer une partie
+        part = m21.stream.Part(instrumentName="Piano")
+        score.append(part)
+
+        # 2. Définir une résolution rythmique (ex: 16e de note)
+        resolution = 16  # 16e de note
+
+        # 3. Ajouter les notes avec arrondi des durées
+        for note_data in melody_seq:
+            # Convertir les durées en quarts de note
+            duration = note_data["duration"] / seconds_per_beat
+            offset = note_data["start_time"] / seconds_per_beat
+
+            # Arrondir à la résolution choisie
+            rounded_duration = round(duration * resolution) / resolution
+            rounded_offset = round(offset * resolution) / resolution
+
+            # Éviter les durées nulles ou négatives
+            if rounded_duration <= 0:
+                continue
+
+            # Créer la note
+            n = m21.note.Note(note_data["note"])
+            n.quarterLength = rounded_duration
+            n.offset = rounded_offset
+
+            # Ajouter la note à la partie
+            part.append(n)
+
+        # 4. Sauvegarder le XML et le MIDI dans des fichiers temporaires
+        with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_xml_file, \
+             tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp_midi_file:
+
+            # Sauvegarder le XML
+            score.write('musicxml', fp=tmp_xml_file.name)
+            xml_path = tmp_xml_file.name
+
+            # Sauvegarder le MIDI
+            score.write('midi', fp=tmp_midi_file.name)
+            midi_path = tmp_midi_file.name
+
+        # 5. Lire les contenus des fichiers
+        with open(xml_path, 'r') as f:
+            xml_results = f.read()
+
+        with open(midi_path, 'rb') as f:
+            midi_results = f.read()
+
+        # Afficher la racine du XML
+        print(f"✓ XML loaded as 'xml_results' and midi loaded as 'midi_results'")
+
+    if os.path.exists(tmp_audio_path):
+        os.remove(tmp_audio_path)
+        os.remove(xml_path)
+        os.remove(midi_path)
+
+    # ============= STEP 7: COMPILE FINAL RESPONSE =============
+
+    print(f"\n{'='*70}")
+    print(f"✓ PIPELINE COMPLETE")
+    print(f"{'='*70}\n")
+
+    return xml_results, midi_results
 
 
 @app.get("/")
@@ -244,160 +402,18 @@ async def split_audio_predict(
         )
 
 
-@app.post("/full_pipeline", response_model=FullPipelineResponse)
-async def full_pipeline(
-    file: UploadFile = File(...),
-    model_type: str = "conv2d"
-) -> FullPipelineResponse:
+@app.post("/full_pipeline_xml")
+async def get_xml(file: UploadFile = File(...), model_type: str = "conv2d"):
     """
-    Endpoint: Execute the complete melody reconstruction pipeline
-
-    This endpoint performs the FULL pipeline in sequence:
-    1. **Audio Splitting**: Detect onsets and split into individual notes
-    2. **Note Prediction**: Predict each note using the specified model
-    3. **Melody Reconstruction**: Assemble all predictions with timing information
-    4. **Results Export**: Generate and return a CSV file with all results
-
-    The complete pipeline ensures:
-    - Timing accuracy: Each note has precise onset time and duration
-    - Model consistency: Uses the same model for all predictions
-    - Data completeness: Returns detailed metadata alongside predictions
-
-    Args:
-        file: Audio file (WAV, MP3, etc.)
-        model_type: Model to use ('conv2d' or 'randforest')
-
-    Returns:
-        FullPipelineResponse with complete melody reconstruction and XML export
+    Endpoint pour obtenir le fichier XML de la mélodie reconstruite.
     """
+    xml_results, _ = await run_full_pipeline(file, model_type)
+    return Response(content=xml_results, media_type='application/xml')
 
-    # ============= STEP 1: VALIDATE INPUT =============
-    if not file.filename:
-        raise ValueError("No filename provided")
-
-    if model_type not in ['conv2d', 'randforest']:
-        raise ValueError(f"Invalid model_type '{model_type}'. Must be 'conv2d' or 'randforest'")
-
-    print(f"\n{'='*70}")
-    print(f"🎵 FULL PIPELINE EXECUTION")
-    print(f"{'='*70}")
-    print(f"File: {file.filename}")
-    print(f"Model: {model_type.upper()}")
-
-    # ============= STEP 2: READ AUDIO =============
-    contents = await file.read()
-    if not contents:
-        raise ValueError("Uploaded file is empty")
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-        tmp_file.write(contents)
-        tmp_audio_path = tmp_file.name
-
-    # Create the MelodyReconstructor
-    reconstructor = MelodyReconstructor(model_type=model_type)
-
-    with tempfile.TemporaryDirectory() as temp_notes_dir:
-        # ============= STEP 3: SPLIT AUDIO =============
-        print(f"\n[STEP 1/3] Splitting audio...")
-        split_success = reconstructor.split_audio(
-            audio_file=tmp_audio_path,
-            notes_folder=temp_notes_dir,
-            confirm_clear=False
-        )
-
-        if not split_success:
-            raise ValueError("Audio splitting failed")
-
-        split_info = reconstructor.results['split']
-        print(f"✓ Split complete: {split_info['num_notes_detected']} notes detected")
-
-        # ============= STEP 4: PREDICT NOTES =============
-        print(f"\n[STEP 2/3] Predicting notes with {model_type.upper()}...")
-        predict_success = reconstructor.predict_notes()
-
-        if not predict_success:
-            raise ValueError("Note prediction failed")
-
-        predictions = reconstructor.results['predictions']
-        successful_predictions = [p for p in predictions if p['error'] is None]
-        print(f"✓ Predictions complete: {len(successful_predictions)}/{len(predictions)} successful")
-
-        # ============= STEP 5: RECONSTRUCT MELODY =============
-        print(f"\n[STEP 3/3] Reconstructing melody...")
-        reconstruction = reconstructor.reconstruct_melody()
-
-        if not reconstruction.get('success'):
-            raise ValueError("Melody reconstruction failed")
-
-        melody_seq = reconstruction['melody_sequence']
-        print(f"✓ Reconstruction complete: {len(melody_seq)} notes in sequence")
-
-        # ============= STEP 6: GENERATE CSV =============
-        # print(f"\n[STEP 4/4] Generating CSV results...")
-        print(f"\n[STEP 4/4] Generating XML results...")
-
-        # 1. Créer une partition
-        score = m21.stream.Score()
-        bpm = split_info['tempo']
-        seconds_per_beat = 60.0 / bpm  # Durée d'une noire en secondes
-
-        # Ajouter le tempo
-        metronome = m21.tempo.MetronomeMark(number=bpm)
-        score.append(metronome)
-
-        # Créer une partie
-        part = m21.stream.Part(instrumentName="Piano")
-        score.append(part)
-
-        # 2. Définir une résolution rythmique (ex: 16e de note)
-        resolution = 16  # 16e de note
-
-        # 3. Ajouter les notes avec arrondi des durées
-        for note_data in melody_seq:
-            # Convertir les durées en quarts de note
-            duration = note_data["duration"] / seconds_per_beat
-            offset = note_data["start_time"] / seconds_per_beat
-
-            # Arrondir à la résolution choisie
-            rounded_duration = round(duration * resolution) / resolution
-            rounded_offset = round(offset * resolution) / resolution
-
-            # Éviter les durées nulles ou négatives
-            if rounded_duration <= 0:
-                continue
-
-            # Créer la note
-            n = m21.note.Note(note_data["note"])
-            n.quarterLength = rounded_duration
-            n.offset = rounded_offset
-
-            # Ajouter la note à la partie
-            part.append(n)
-
-        # 4. Sauvegarder le XML dans un fichier temporaire
-        with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_xml_file:
-            score.write('musicxml', fp=tmp_xml_file.name)
-            xml_path = tmp_xml_file.name
-
-        # 5. Lire le contenu XML
-        with open(xml_path, 'r') as f:
-            xml_results = f.read()
-
-        # Afficher la racine du XML
-        print(f"✓ XML loaded as 'xml_results'")
-
-    if os.path.exists(tmp_audio_path):
-        os.remove(tmp_audio_path)
-        os.remove(xml_path)
-
-    # ============= STEP 7: COMPILE FINAL RESPONSE =============
-    response = FullPipelineResponse(
-        xml_results=xml_results
-    )
-    print(response)
-
-    print(f"\n{'='*70}")
-    print(f"✓ PIPELINE COMPLETE")
-    print(f"{'='*70}\n")
-
-    return Response(content=response.xml_results, media_type='application/xml')
+@app.post("/full_pipeline_midi")
+async def get_midi(file: UploadFile = File(...), model_type: str = "conv2d"):
+    """
+    Endpoint pour obtenir le fichier MIDI de la mélodie reconstruite.
+    """
+    _, midi_results = await run_full_pipeline(file, model_type)
+    return Response(content=midi_results, media_type='audio/midi', headers={"Content-Disposition": "attachment; filename=melody.mid"})
