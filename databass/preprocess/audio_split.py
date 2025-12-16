@@ -128,7 +128,26 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
 
         # 6. Détection des onsets (début des notes)
         try:
-            onsets = librosa.onset.onset_detect(y=y, sr=sr, units='time')
+            # Calcualte the onset frames in the usual way
+            onset_frames = librosa.onset.onset_detect(y=y, sr=sr)
+            onstm = librosa.frames_to_time(onset_frames, sr=sr)
+
+            # Calculate RMS energy per frame.  I shortened the frame length from the
+            # default value in order to avoid ending up with too much smoothing
+            rmse = librosa.feature.rmse(y=y, frame_length=512)[0,]
+            envtm = librosa.frames_to_time(np.arange(len(rmse)), sr=sr)
+            # Use final 1 seconds of recording in order to estimate median noise level
+            # and typical variation
+            noiseidx = [envtm > envtm[-1] - 1.0]
+            noisemedian = np.percentile(rmse[noiseidx], 50)
+            sigma = np.percentile(rmse[noiseidx], 84.1) - noisemedian
+            # Set the minimum RMS energy threshold that is needed in order to declare
+            # an "onset" event to be equal to 5 sigma above the median
+            threshold = noisemedian + 5*sigma
+            threshidx = [rmse > threshold]
+            # Choose the corrected onset times as only those which meet the RMS energy
+            # minimum threshold requirement
+            onsets = onstm[[tm in envtm[threshidx] for tm in onstm]]
 
 
             num_onsets = len(onsets)
@@ -142,7 +161,7 @@ def audio_split_by_note(fichier_audio, dossier_sortie="notes", confirm_clear=Tru
                 )
 
             # 6.a Récupérer le timestamp de début de note pour transmettre à reconstruction de mélodie
-            result['onset_times'] = librosa.frames_to_time(onsets, sr=sr)
+            result['onset_times'] = onsets
 
             print(f"✓ Detected {num_onsets} note(s) stored in onset_times")
             result['num_notes_detected'] = num_onsets
