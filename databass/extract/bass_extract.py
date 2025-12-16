@@ -22,14 +22,110 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import sys
 from pathlib import Path
+from .spectrograms_extract import extract_spectrograms
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 from utils import bass_notes
+from utils import guitar_notes
 
 # exemple directory for chorus effect :
 # working_dir + '/raw_data/Bass monophon/Lists/Chorus'
+def extract_guitar_list(working_dir):
+    raw_data_guitar = os.path.join(working_dir, 'raw_data', 'Gitarr monophon', 'Lists')
+    # list the effect directories
+    effect_dirs = os.listdir(raw_data_guitar)
+    output_files = []
+    for effect in effect_dirs:
+        effect_path = os.path.join(raw_data_guitar, effect)
+        print(f"Processing effect: {effect}")
+        output_files.append(extract_effect_guitar_list(effect_path, working_dir))
+    # combine all effect files into one
+    combined_df = pd.DataFrame()
+    for effect_file in output_files:
+        print(f"Combining file: {effect_file}")
+        df = pd.read_csv(effect_file)
+        combined_df = pd.concat([combined_df, df], ignore_index=True)
+    combined_output_file = os.path.join(
+        working_dir,
+        'data',
+        'preprocessed',
+        'guitar_list.csv'
+    )
+
+    combined_df.to_csv(combined_output_file, index=False)
+    print(f"Combined guitar list saved to {combined_output_file}")
+    print("Guitar extraction complete.")
+    # remove individual effect files
+    for effect in effect_dirs:
+        effect_name = effect
+        effect_file = os.path.join(
+            working_dir,
+            'data',
+            'preprocessed',
+            f'{effect_name}_list.csv'
+        )
+        os.remove(effect_file)
+    return combined_output_file
+
+def extract_effect_guitar_list(directory, working_dir):
+    files = os.listdir(directory)
+    effect_name = os.path.basename(directory)
+    data = []
+
+    for file in files:
+        tree = ET.parse(os.path.join(directory, file))
+        root = tree.getroot()
+        for audiofile in root.findall('audiofile'):
+            fileID = audiofile.find('fileID').text
+            instrument = audiofile.find('instrument').text
+            instrumentsetting = audiofile.find('instrumentsetting').text
+            playstyle = audiofile.find('playstyle').text
+            midinr = audiofile.find('midinr').text
+            string = audiofile.find('string').text
+            fret = audiofile.find('fret').text
+            fxgroup = audiofile.find('fxgroup').text
+            fxtype = audiofile.find('fxtype').text
+            fxsetting = audiofile.find('fxsetting').text
+            filenr = audiofile.find('filenr').text
+
+            # save in a dataframe
+            data.append({
+                'fileID': fileID,
+                'instrument': instrument,
+                'instrumentsetting': instrumentsetting,
+                'playstyle': playstyle,
+                'midinr': midinr,
+                'string': string,
+                'fret': fret,
+                'fxgroup': fxgroup,
+                'fxtype': fxtype,
+                'fxsetting': fxsetting,
+                'filenr': filenr
+            })
+
+    df = pd.DataFrame(data)
+
+    df['note_name'] = df.apply(
+        lambda row: guitar_notes.get_note_name(row['string'], row['fret']),
+        axis=1
+    )
+
+    df['file_path'] = df['fileID'].apply(lambda x:
+        os.path.join(
+            directory.replace('Lists', 'Samples'),
+            f"{x}.wav"
+        )
+    )
+    output_dir = os.path.join(working_dir, 'data', 'preprocessed')
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, f'{effect_name}_list.csv')
+    df.to_csv(output_file, index=False)
+    print(f"Extracted guitar list for effect {effect_name} saved to {output_file}")
+    return output_file
+
+
 def extract_effect_bass_list(directory, working_dir):
     files = os.listdir(directory)
     effect_name = os.path.basename(directory)
@@ -88,7 +184,6 @@ def extract_effect_bass_list(directory, working_dir):
 
 def extract_bass_list(working_dir):
     raw_data_bass = os.path.join(working_dir, 'raw_data', 'Bass monophon', 'Lists')
-    # list the effect directories
     effect_dirs = os.listdir(raw_data_bass)
     output_files = []
     for effect in effect_dirs:
@@ -123,6 +218,8 @@ def extract_bass_list(working_dir):
     return combined_output_file
 
 if __name__ == "__main__":
-    print("Extracting bass list...")
+    print("Extracting guitar list...")
     load_dotenv()
-    extract_bass_list(os.getenv('WORKING_DIR'))
+    extract_guitar_list(os.getenv('WORKING_DIR'))
+    extract_spectrograms()
+    print("Guitar spectrogram extraction complete.")
