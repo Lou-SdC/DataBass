@@ -8,9 +8,9 @@ import librosa
 import pandas as pd
 import numpy as np
 
-from ..preprocess.spectrograms import generate_mel_spectrogram as _generate_mel_spectrogram
+from preprocess.spectrograms import generate_mel_spectrogram as _generate_mel_spectrogram
 
-def generate_mel_spectrogram(y, sr,):
+def generate_mel_spectrogram(y, sr, target_shape = (256,256)):
     """
     Generate a Mel-spectrogram from an audio signal.
 
@@ -24,7 +24,7 @@ def generate_mel_spectrogram(y, sr,):
         y,
         sr,
         normalize='minmax',
-        target_shape=(128,128)
+        target_shape=target_shape,
     )
 
 def extract_spectrograms():
@@ -33,10 +33,10 @@ def extract_spectrograms():
     WORKING_DIR = os.getenv("WORKING_DIR")
 
     #get the list file
-    sample_list = pd.read_csv(WORKING_DIR + "/data/preprocessed/guitar_list.csv")
+    sample_list = pd.read_csv(WORKING_DIR + "/data/preprocessed/instruments_list_augmented.csv")
 
     # Dossier de sortie pour les spectrogrammes
-    output_dir = WORKING_DIR + "/data/guitar_spectrograms"
+    output_dir = WORKING_DIR + "/data/spectrograms"
     os.makedirs(output_dir, exist_ok=True)
 
     # Go through the dataframe
@@ -61,7 +61,7 @@ def extract_spectrograms():
         mel_spec = np.expand_dims(mel_spec, axis=-1)
 
         # output folder for each note
-        note_dir = os.path.join(output_dir, row['note_name'])
+        note_dir = os.path.join(output_dir, row['instrument'],row['note_name'].replace('#','sharp'))
         os.makedirs(note_dir, exist_ok=True)
 
         # output file name (.npy)
@@ -70,3 +70,7 @@ def extract_spectrograms():
 
         # Save the spectrogram .npy
         np.save(output_path, mel_spec)
+        print(f"✅ Spectrogram saved: {output_path}")
+
+if __name__ == "__main__":
+    extract_spectrograms()

@@ -22,7 +22,6 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import sys
 from pathlib import Path
-from .spectrograms_extract import extract_spectrograms
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -217,9 +216,38 @@ def extract_bass_list(working_dir):
         os.remove(effect_file)
     return combined_output_file
 
+def extract_combined_bass_guitar_list(working_dir):
+    """
+    Extracts both guitar and bass lists and merges them into a single CSV.
+    Returns path to the combined CSV.
+    """
+    # First, generate per-instrument combined CSVs using existing flows
+    guitar_csv = extract_guitar_list(working_dir)
+    bass_csv = extract_bass_list(working_dir)
+
+    # Read and merge
+    guitar_df = pd.read_csv(guitar_csv)
+    bass_df = pd.read_csv(bass_csv)
+
+    combined_df = pd.concat([guitar_df, bass_df], ignore_index=True)
+
+    combined_output_file = os.path.join(
+        working_dir,
+        'data',
+        'preprocessed',
+        'instruments_list.csv'
+    )
+    combined_df.to_csv(combined_output_file, index=False)
+    print(f"Combined instruments list saved to {combined_output_file}")
+    return combined_output_file
+
+
 if __name__ == "__main__":
-    print("Extracting guitar list...")
+    print("Extracting guitar and bass lists...")
     load_dotenv()
-    extract_guitar_list(os.getenv('WORKING_DIR'))
-    extract_spectrograms()
-    print("Guitar spectrogram extraction complete.")
+    working_dir = os.getenv('WORKING_DIR')
+    if not working_dir:
+        raise RuntimeError("WORKING_DIR environment variable is not set.")
+    combined_csv = extract_combined_bass_guitar_list(working_dir)
+    # Optionally trigger spectrogram extraction after list generation
+    print(f"Done. Combined CSV: {combined_csv}")
