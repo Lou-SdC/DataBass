@@ -4,9 +4,9 @@ import numpy as np
 import ast
 
 import os
-from utils.create_table import create_table
-from utils.get_note_baseline import get_pic_frequency, get_note
-from preprocess.filter import frequencies_filter
+from databass.utils.create_table import create_table
+from databass.utils.get_note_baseline import get_pic_frequency, get_note
+from databass.preprocess.filter import frequencies_filter
 from concurrent.futures import ProcessPoolExecutor
 from alive_progress import alive_bar
 from itertools import repeat

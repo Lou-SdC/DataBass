@@ -21,8 +21,8 @@ import librosa
 import sys
 parent_dir = Path(__file__).resolve().parent
 sys.path.append(str(parent_dir))
-from preprocess.audio_split import audio_split_by_note
-from models import conv2D, rand_forest
+from databass.preprocess.audio_split import audio_split_by_note
+from databass.models import conv2D, rand_forest
 
 
 class MelodyReconstructor:

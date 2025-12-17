@@ -15,10 +15,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
-from utils import bass_notes
-from utils import guitar_notes
+from databass.utils import bass_notes
+from databass.utils import guitar_notes
 
-from preprocess.spectrograms import generate_mel_spectrogram, plot_mel_spectrogram
+from databass.preprocess.spectrograms import generate_mel_spectrogram, plot_mel_spectrogram
 
 
 

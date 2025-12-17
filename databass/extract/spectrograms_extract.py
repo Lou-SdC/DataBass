@@ -8,7 +8,7 @@ import librosa
 import pandas as pd
 import numpy as np
 
-from preprocess.spectrograms import generate_mel_spectrogram as _generate_mel_spectrogram
+from databass.preprocess.spectrograms import generate_mel_spectrogram as _generate_mel_spectrogram
 
 def generate_mel_spectrogram(y, sr, target_shape = (256,256)):
     """

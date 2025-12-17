@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
 
-from preprocess.spectrograms import generate_mel_spectrogram
+from databass.preprocess.spectrograms import generate_mel_spectrogram
 from tensorflow.keras.models import load_model as k_load_model
 import pickle
 
@@ -196,6 +196,16 @@ def load_model():
     PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     PARENT_DIR = os.path.dirname(PARENT_DIR)
     MODEL_PATH = os.path.join(PARENT_DIR, 'data', 'models', 'conv2D_model.keras')
+
+    # Check if file exists, with better error message
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"❌ Model file not found at: {MODEL_PATH}\n"
+            f"   Computed PARENT_DIR: {PARENT_DIR}\n"
+            f"   Current working directory: {os.getcwd()}\n"
+            f"   Please ensure you're running from the project root or that the model file exists."
+        )
+
     model = k_load_model(MODEL_PATH)
     print("Model loaded from", MODEL_PATH)
     # load label encoder from label_encoder.pkl file
